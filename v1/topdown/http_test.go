@@ -3034,7 +3034,7 @@ func TestCertSelectionLogic(t *testing.T) {
 			msg:      "Expected TLS config to use system certs",
 		},
 		{
-			note:     "tls_use_system_certs set to nil",
+			note:     "tls_use_system_certs set to false",
 			input:    map[*ast.Term]*ast.Term{ast.StringTerm("tls_use_system_certs"): ast.BooleanTerm(false)},
 			expected: nil,
 			msg:      "Expected no TLS config",
@@ -3042,7 +3042,7 @@ func TestCertSelectionLogic(t *testing.T) {
 		{
 			note:     "no CAs specified",
 			input:    nil,
-			expected: systemCertsPool.Subjects(), // nolint:staticcheck // ignoring the deprecated (*CertPool).Subjects() call here because it's in a test.
+			expected: nil,
 			msg:      "Expected TLS config to use system certs",
 		},
 		{
@@ -3165,7 +3165,6 @@ func TestHTTPSendCacheDefaultStatusCodesInterQueryCache(t *testing.T) {
 	defer ts.Close()
 
 	t.Run("non-cacheable status code: inter-query cache", func(t *testing.T) {
-
 		// add an inter-query cache
 		config, _ := iCache.ParseCachingConfig([]byte(`{"inter_query_builtin_cache": {"max_size_bytes": 500, "stale_entry_eviction_period_seconds": 1, "forced_eviction_threshold_percentage": 80},}`))
 		interQueryCache := iCache.NewInterQueryCacheWithContext(context.Background(), config)
@@ -3610,12 +3609,9 @@ func TestDistributedTracingEnableDisable(t *testing.T) {
 			DistributedTracingOpts: tracing.NewOptions(true), // any option means it's enabled
 		}
 
-		_, client, err := createHTTPRequest(builtinContext, ast.NewObject())
+		_, _, err := createHTTPRequest(builtinContext, ast.NewObject())
 		if err != nil {
 			t.Fatalf("Unexpected error creating HTTP request %v", err)
-		}
-		if client.Transport == nil {
-			t.Fatal("No Transport defined")
 		}
 
 		if exp, act := 1, mock.called; exp != act {
@@ -3631,12 +3627,9 @@ func TestDistributedTracingEnableDisable(t *testing.T) {
 			Context: context.Background(),
 		}
 
-		_, client, err := createHTTPRequest(builtinContext, ast.NewObject())
+		_, _, err := createHTTPRequest(builtinContext, ast.NewObject())
 		if err != nil {
 			t.Fatalf("Unexpected error creating HTTP request %v", err)
-		}
-		if client.Transport == nil {
-			t.Fatal("No Transport defined")
 		}
 
 		if exp, act := 0, mock.called; exp != act {
@@ -3741,6 +3734,10 @@ func (st *secretTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 func (st *secretTransport) Transform(t *http.Transport) http.RoundTripper {
+	// Transport may be nil when the http.DefaultTransport is used
+	if t == nil {
+		t = http.DefaultTransport.(*http.Transport)
+	}
 	st.Transport = t.Clone()
 	return st
 }
